@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DPDK CGNAT Monitoring Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            color: #667eea;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 8px 20px;
+            background: #10b981;
+            color: white;
+            border-radius: 25px;
+            font-size: 0.9em;
+            font-weight: 600;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .metric-card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            transition: transform 0.2s;
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+        
+        .metric-label {
+            font-size: 0.9em;
+            color: #888;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .metric-value {
+            font-size: 3em;
+            font-weight: 700;
+            color: #667eea;
+            margin: 10px 0;
+        }
+        
+        .metric-subtitle {
+            font-size: 0.85em;
+            color: #999;
+        }
+        
+        .chart-container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            margin-bottom: 30px;
+        }
+        
+        .chart-title {
+            font-size: 1.5em;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .performance-bar {
+            height: 30px;
+            background: #e5e7eb;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+        
+        .performance-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            padding-left: 15px;
+            color: white;
+            font-weight: 600;
+        }
+        
+        .alert {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .error-metric {
+            color: #ef4444;
+        }
+        
+        .success-metric {
+            color: #10b981;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .info-item {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        
+        .info-item-label {
+            font-size: 0.8em;
+            color: #888;
+            margin-bottom: 5px;
+        }
+        
+        .info-item-value {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>
+                ⚡ DPDK CGNAT Monitor
+            </h1>
+            <span class="status-badge" id="statusBadge">● LIVE</span>
+        </header>
+        
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-label">Packets Received</div>
+                <div class="metric-value" id="packetsRx">0</div>
+                <div class="metric-subtitle">Total throughput</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-label">Packets Transmitted</div>
+                <div class="metric-value" id="packetsTx">0</div>
+                <div class="metric-subtitle">Successfully translated</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-label">Active Sessions</div>
+                <div class="metric-value" id="activeSessions">0</div>
+                <div class="metric-subtitle">NAT connections</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-label">Average Latency</div>
+                <div class="metric-value success-metric" id="avgLatency">0.0</div>
+                <div class="metric-subtitle">microseconds</div>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <div class="chart-title">Performance Metrics</div>
+            
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-item-label">Bytes RX</div>
+                    <div class="info-item-value" id="bytesRx">0 MB</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Bytes TX</div>
+                    <div class="info-item-value" id="bytesTx">0 MB</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Packets Dropped</div>
+                    <div class="info-item-value error-metric" id="packetsDropped">0</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Max Latency</div>
+                    <div class="info-item-value" id="maxLatency">0 μs</div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 30px;">
+                <div style="margin-bottom: 10px; font-weight: 600;">Sessions Created: <span id="sessionsCreated">0</span></div>
+                <div class="performance-bar">
+                    <div class="performance-fill" id="sessionBar" style="width: 0%">0%</div>
+                </div>
+                
+                <div style="margin-bottom: 10px; font-weight: 600;">Port Allocation Failures: <span id="portFails">0</span></div>
+                <div class="performance-bar">
+                    <div class="performance-fill" id="portFailBar" style="width: 0%; background: linear-gradient(90deg, #ef4444, #dc2626);">0%</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <div class="chart-title">System Information</div>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-item-label">Sessions Expired</div>
+                    <div class="info-item-value" id="sessionsExpired">0</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Timestamp</div>
+                    <div class="info-item-value" id="timestamp">--</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Update Rate</div>
+                    <div class="info-item-value">2 seconds</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">API Endpoint</div>
+                    <div class="info-item-value">/api/stats</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        async function fetchStats() {
+            try {
+                const response = await fetch('/api/stats');
+                if (!response.ok) {
+                    throw new Error('API request failed');
+                }
+                const data = await response.json();
+                updateDashboard(data);
+                document.getElementById('statusBadge').textContent = '● LIVE';
+                document.getElementById('statusBadge').style.background = '#10b981';
+            } catch (error) {
+                console.error('Error fetching stats:', error);
+                document.getElementById('statusBadge').textContent = '● ERROR';
+                document.getElementById('statusBadge').style.background = '#ef4444';
+            }
+        }
+        
+        function formatNumber(num) {
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toString();
+        }
+        
+        function formatBytes(bytes) {
+            if (bytes >= 1073741824) return (bytes / 1073741824).toFixed(2) + ' GB';
+            if (bytes >= 1048576) return (bytes / 1048576).toFixed(2) + ' MB';
+            if (bytes >= 1024) return (bytes / 1024).toFixed(2) + ' KB';
+            return bytes + ' B';
+        }
+        
+        function updateDashboard(data) {
+            document.getElementById('packetsRx').textContent = formatNumber(data.packets_rx);
+            document.getElementById('packetsTx').textContent = formatNumber(data.packets_tx);
+            document.getElementById('activeSessions').textContent = formatNumber(data.active_sessions);
+            document.getElementById('avgLatency').textContent = data.avg_latency_us.toFixed(2);
+            
+            document.getElementById('bytesRx').textContent = formatBytes(data.bytes_rx);
+            document.getElementById('bytesTx').textContent = formatBytes(data.bytes_tx);
+            document.getElementById('packetsDropped').textContent = formatNumber(data.packets_dropped);
+            document.getElementById('maxLatency').textContent = data.max_latency_us + ' μs';
+            
+            document.getElementById('sessionsCreated').textContent = formatNumber(data.sessions_created);
+            document.getElementById('sessionsExpired').textContent = formatNumber(data.sessions_expired);
+            document.getElementById('portFails').textContent = formatNumber(data.port_allocation_failures);
+            
+            // Update progress bars
+            const sessionPercent = Math.min(100, (data.active_sessions / 50000) * 100);
+            const portFailPercent = Math.min(100, (data.port_allocation_failures / 1000) * 100);
+            
+            document.getElementById('sessionBar').style.width = sessionPercent + '%';
+            document.getElementById('sessionBar').textContent = sessionPercent.toFixed(1) + '%';
+            
+            document.getElementById('portFailBar').style.width = portFailPercent + '%';
+            document.getElementById('portFailBar').textContent = portFailPercent.toFixed(1) + '%';
+            
+            // Update timestamp
+            const date = new Date(data.timestamp * 1000);
+            document.getElementById('timestamp').textContent = date.toLocaleTimeString();
+        }
+        
+        // Auto-refresh every 2 seconds
+        setInterval(fetchStats, 2000);
+        fetchStats();
+    </script>
+</body>
+</html>
