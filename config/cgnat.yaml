@@ -1,0 +1,177 @@
+# DPDK CGNAT Configuration for Production ISP
+
+# DPDK Configuration
+dpdk:
+  # EAL parameters
+  cores: "0-7"              # CPU cores to use (lcore mask)
+  memory_channels: 4        # Memory channels
+  hugepage_size: "2M"       # 2M or 1G
+  socket_mem: "2048,2048"   # Memory per NUMA socket (MB)
+  
+  # Port configuration
+  ports:
+    - id: 0
+      pci: "0000:02:00.0"   # PCIe address of NIC
+      queues: 8             # RX/TX queues (one per worker core)
+      mtu: 1500
+      promiscuous: false
+  
+  # Performance tuning
+  rx_burst_size: 32
+  tx_burst_size: 32
+  mbuf_pool_size: 524288    # Number of packet buffers
+  mbuf_cache_size: 512
+
+# NAT Configuration
+nat:
+  # Public IP pool (ISP's allocated IPs)
+  public_ips:
+    - "203.0.113.1"
+    - "203.0.113.2"
+    - "203.0.113.3"
+    - "203.0.113.4"
+    - "203.0.113.5"
+    - "203.0.113.6"
+    - "203.0.113.7"
+    - "203.0.113.8"
+    - "203.0.113.9"
+    - "203.0.113.10"
+  
+  # Customer IP ranges (RFC1918 private IPs)
+  customer_ranges:
+    - "10.0.0.0/16"         # Supports 65,536 customers
+  
+  # Port allocation
+  port_range:
+    start: 1024
+    end: 65535
+  
+  # Session capacity
+  max_sessions: 50000       # Maximum concurrent NAT sessions
+  sessions_per_core: 6250   # For 8 worker cores
+  
+  # Connection timeouts (seconds)
+  timeouts:
+    tcp_established: 7200   # 2 hours
+    tcp_syn: 60
+    tcp_fin: 120
+    udp_active: 300         # 5 minutes
+    icmp: 30
+  
+  # Hash table configuration
+  hash_table:
+    buckets: 65536          # Power of 2 for fast modulo
+    entries_per_bucket: 4   # Average chain length target
+
+# Traffic Policy
+policy:
+  # Port exhaustion handling
+  port_exhaustion:
+    action: "drop"          # drop | queue | alert
+    alert_threshold: 90     # Alert when >90% ports used
+  
+  # Per-customer limits
+  per_customer:
+    max_sessions: 100       # Max concurrent sessions per customer
+    max_bandwidth_mbps: 100 # Rate limit per customer (optional)
+  
+  # ACL rules (optional)
+  acl:
+    block_ports: [25, 135, 139, 445]  # Block common exploit ports
+    allow_protocols: ["tcp", "udp", "icmp"]
+
+# Monitoring & Telemetry
+monitoring:
+  # Prometheus exporter
+  prometheus:
+    enabled: true
+    port: 9091
+    path: "/metrics"
+    update_interval: 1      # Seconds
+  
+  # REST API server
+  api:
+    enabled: true
+    host: "0.0.0.0"
+    port: 8080
+    workers: 2              # Dedicated cores for API
+  
+  # Dashboard
+  dashboard:
+    enabled: true
+    path: "/ui"
+    websocket_port: 8081    # For live updates
+  
+  # Statistics collection
+  stats:
+    per_core: true
+    per_customer: true
+    per_public_ip: true
+    aggregation_interval: 1 # Seconds
+
+# Logging
+logging:
+  # Log levels: debug, info, warn, error, fatal
+  level: "info"
+  
+  # Output targets
+  outputs:
+    - type: "console"
+      level: "info"
+    
+    - type: "file"
+      level: "info"
+      path: "/var/log/dpdk-cgnat/cgnat.log"
+      rotation:
+        max_size_mb: 100
+        max_files: 10
+    
+    - type: "syslog"
+      level: "warn"
+      facility: "local0"
+  
+  # Structured logging
+  format: "json"            # json | text
+  
+  # Per-core ring buffers
+  ring_buffer_size: 4096    # Log entries per core
+  
+  # Rate limiting for noisy logs
+  rate_limit:
+    enabled: true
+    max_per_second: 1000
+
+# High Availability (optional)
+ha:
+  enabled: false
+  mode: "active-standby"    # active-standby | active-active
+  vrrp:
+    virtual_ip: "203.0.113.254"
+    priority: 100
+    advertisement_interval: 1
+  
+  # State synchronization
+  sync:
+    enabled: false
+    peer_ip: "192.168.1.2"
+    port: 3784
+
+# Operational Settings
+operations:
+  # Graceful shutdown
+  shutdown_timeout: 30      # Seconds to drain connections
+  
+  # Configuration reload
+  hot_reload: true          # Reload config without restart
+  
+  # Watchdog
+  watchdog:
+    enabled: true
+    interval: 5             # Health check interval (seconds)
+    timeout: 10             # Mark core dead if no response
+  
+  # Core pinning (NUMA awareness)
+  numa_aware: true
+  
+  # Performance modes
+  mode: "production"        # development | production
