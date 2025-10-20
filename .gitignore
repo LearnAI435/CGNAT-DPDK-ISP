@@ -1,0 +1,46 @@
+# Build artifacts
+build/
+*.o
+*.a
+*.so
+*.so.*
+*.la
+*.lo
+.deps/
+.libs/
+
+# Meson
+builddir/
+.ninja_log
+compile_commands.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# Config (keep template)
+config/cgnat.local.yaml
+
+# Documentation build
+docs/_build/
+docs/.buildinfo
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# DPDK
+dpdk-*.tar.xz
+dpdk-*/
+
+# OS
+.DS_Store
+Thumbs.db
